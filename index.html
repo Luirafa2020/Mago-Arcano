@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Mago Cromático: Edição Arcana</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Importante: type="module" -->
+    <script type="module" src="./js/main.js"></script>
+</head>
+<body>
+
+    <!-- HUD (Interface de Vida e Magias) -->
+    <div id="ui">
+        <div class="top-hud">
+            <div>ALMAS: <span id="score-display" style="color:#f1c40f">0</span></div>
+            <div class="health-container">
+                <span>VIDA</span>
+                <div class="health-bar"><div class="hp-fill" id="hp-display"></div></div>
+            </div>
+        </div>
+
+        <div id="crosshair"></div>
+
+        <div class="magic-hud">
+            <div class="runes">
+                <div id="ui-red" class="rune-box red"><span>Q</span>Fogo</div>
+                <div id="ui-yellow" class="rune-box yellow"><span>E</span>Raio</div>
+                <div id="ui-blue" class="rune-box blue"><span>R</span>Gelo</div>
+            </div>
+            <div style="font-size: 10px; color: #666; margin-top:5px;">COMBINE AS CORES PARA ATACAR</div>
+        </div>
+    </div>
+
+    <!-- TELA INICIAL / PAUSE -->
+    <div id="overlay">
+        <h1>MAGO ARCANO</h1>
+        <p>A escuridão traz espectros coloridos.</p>
+        <p>Use sua magia para expurgá-los.</p>
+        <br>
+        <p>MOVER: <span class="key">W A S D</span> &nbsp; MIRAR: <span class="key">MOUSE</span></p>
+        <p>MAGIAS: <span class="key">Q</span> (Vermelho) | <span class="key">E</span> (Amarelo) | <span class="key">R</span> (Azul)</p>
+        <br>
+        <p style="color: #ff6600">Laranja = Q + E</p>
+        <p style="color: #bc13fe">Roxo = Q + R</p>
+        <p style="color: #00ff00">Verde = E + R</p>
+        <button class="btn" id="start-btn">INICIAR RITUAL</button>
+    </div>
+
+    <!-- TELA DE GAME OVER -->
+    <div id="game-over" style="display: none;">
+        <h1 class="dead-text">VOCÊ MORREU</h1>
+        <p>Sua luz se apagou na escuridão.</p>
+        <p class="final-score-box">ALMAS COLHIDAS: <span id="final-score">0</span></p>
+        <button class="btn restart-btn" id="restart-btn">RENASCER</button>
+    </div>
+
+</body>
+</html>
