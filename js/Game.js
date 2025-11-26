@@ -9,7 +9,7 @@ import { InputHandler } from './InputHandler.js';
 export class GameController {
     constructor() {
         this.running = false;
-        this.isGameOver = false; // Estado do jogo
+        this.isGameOver = false;
         
         this.particles = [];
         this.enemies = [];
@@ -19,7 +19,6 @@ export class GameController {
         this.player = new Player(this.engine.camera, this.engine);
         this.input = new InputHandler(this);
         
-        // UI References
         this.ui = {
             hp: document.getElementById('hp-display'),
             score: document.getElementById('score-display'),
@@ -32,13 +31,11 @@ export class GameController {
             }
         };
 
-        // Dificuldade
         this.initialSpawnRate = 3000;
         this.spawnRate = this.initialSpawnRate;
         this.minSpawnRate = 800;
         this.lastSpawn = 0;
 
-        // Configura botão de Renascer
         document.getElementById('restart-btn').addEventListener('click', () => {
             this.resetGame();
             document.body.requestPointerLock();
@@ -55,7 +52,7 @@ export class GameController {
     }
 
     start() {
-        if (this.isGameOver) return; // Não inicia se estiver morto
+        if (this.isGameOver) return;
         this.running = true;
         document.getElementById('overlay').style.display = 'none';
         this.ui.gameOverScreen.style.display = 'none';
@@ -64,7 +61,6 @@ export class GameController {
     
     pause() {
         this.running = false;
-        // Só mostra menu de pausa se NÃO estiver na tela de Game Over
         if (!this.isGameOver) {
             document.getElementById('overlay').style.display = 'flex';
         }
@@ -73,7 +69,7 @@ export class GameController {
     handleGameOver() {
         this.running = false;
         this.isGameOver = true;
-        document.exitPointerLock(); // Solta o mouse para clicar no botão
+        document.exitPointerLock();
         
         this.ui.finalScore.innerText = this.player.score;
         this.ui.gameOverScreen.style.display = 'flex';
@@ -81,7 +77,6 @@ export class GameController {
     }
 
     resetGame() {
-        // 1. Limpa todas as entidades da cena e memória
         [...this.enemies, ...this.projectiles, ...this.particles].forEach(obj => {
             this.engine.scene.remove(obj);
             obj.traverse(c => {
@@ -90,23 +85,16 @@ export class GameController {
             });
         });
 
-        // 2. Limpa Arrays
         this.enemies = [];
         this.projectiles = [];
         this.particles = [];
 
-        // 3. Reseta Lógica
         this.spawnRate = this.initialSpawnRate;
         this.lastSpawn = Date.now();
         this.isGameOver = false;
 
-        // 4. Reseta Player
         this.player.reset();
-        
-        // 5. Esconde UI de morte
         this.ui.gameOverScreen.style.display = 'none';
-        
-        // O jogo começará quando o pointer lock for confirmado (via InputHandler)
     }
 
     loop() {
@@ -118,55 +106,84 @@ export class GameController {
             const col = this.player.getColor(this.input.runes);
             this.engine.updateCrystal(col.hex);
 
-            // Spawner Suavizado
+            // Spawner
             if (now - this.lastSpawn > this.spawnRate) {
                 this.spawnEnemy();
                 this.lastSpawn = now;
-                // Aumenta dificuldade devagar (tira 15ms por monstro)
                 if(this.spawnRate > this.minSpawnRate) {
                     this.spawnRate -= 15; 
                 }
             }
 
-            // Inimigos
+            // --- LÓGICA DE INIMIGOS (Com Separação) ---
             for (let i = this.enemies.length - 1; i >= 0; i--) {
                 const e = this.enemies[i];
                 e.lookAt(this.player.position.x, e.position.y, this.player.position.z);
                 
+                // Vetor direção ao jogador
                 const dir = new THREE.Vector3().subVectors(this.player.position, e.position).normalize();
+                
+                // --- NOVO: Lógica de Separação (Evita acumular um dentro do outro) ---
+                const separation = new THREE.Vector3();
+                let count = 0;
+                
+                // Checa inimigos próximos (limitado para performance)
+                // Se o jogo ficar lento com muitos inimigos, reduza o número de checagens
+                for(let j = 0; j < this.enemies.length; j++) {
+                    if (i === j) continue; // Não checar contra si mesmo
+                    const other = this.enemies[j];
+                    const dist = e.position.distanceToSquared(other.position);
+                    
+                    // Se estiver muito perto (menos de 2 unidades de distância)
+                    if(dist < 4.0) { 
+                        const push = new THREE.Vector3().subVectors(e.position, other.position).normalize();
+                        // Quanto mais perto, mais forte o empurrão
+                        push.divideScalar(Math.max(0.1, Math.sqrt(dist))); 
+                        separation.add(push);
+                        count++;
+                    }
+                }
+                
+                // Aplica força de separação
+                if(count > 0) {
+                    separation.divideScalar(count).normalize().multiplyScalar(0.03);
+                    e.position.add(separation);
+                }
+                // ------------------------------------------------------------------
+
+                // Aplica movimento normal
                 e.position.addScaledVector(dir, 0.04); 
 
+                // Animação visual
                 e.position.y = 1 + Math.sin((now * 0.003) + e.userData.floatOffset) * 0.2;
                 if(e.children[4]) e.children[4].rotation.x += 0.05; 
                 if(e.children[5]) e.children[5].rotation.x -= 0.05;
 
+                // Colisão com Player
                 if (e.position.distanceTo(this.player.position) < 1.0) {
                     Audio.playSound('damage');
-                    // Verifica se morreu
                     const isDead = this.player.takeDamage(15);
                     this.removeEntity(e, this.enemies);
                     
                     if (isDead) {
                         this.handleGameOver();
-                        break; // Para o loop
+                        break; 
                     }
                 }
             }
             
-            // Se morreu dentro do loop de inimigos, para aqui para não rodar o resto
             if(!this.running && this.isGameOver) {
                 this.engine.render(); 
                 requestAnimationFrame(this.loop);
                 return;
             }
 
-            // Projéteis
+            // --- LÓGICA DE PROJÉTEIS (Tiro Fantasma) ---
             for (let i = this.projectiles.length - 1; i >= 0; i--) {
                 const p = this.projectiles[i];
                 p.position.add(p.userData.velocity);
                 p.rotation.x += 0.1; p.rotation.y += 0.1;
 
-                // Animação do halo neon
                 if(p.children.length > 1 && p.children[1].isMesh) {
                     p.children[1].rotation.x -= 0.2;
                     p.children[1].rotation.z -= 0.1;
@@ -175,18 +192,28 @@ export class GameController {
                 let hit = false;
                 for (let j = this.enemies.length - 1; j >= 0; j--) {
                     const e = this.enemies[j];
+                    
+                    // Checa colisão
                     if (p.position.distanceTo(e.position) < 1.2) {
+                        // --- NOVO: Só interage se a cor for IGUAL ---
                         if (p.userData.type === e.userData.type) {
                             Audio.playSound('hit');
                             EntityFactory.createExplosion(this.engine.scene, e.position, CONFIG.colors[e.userData.type], this.particles);
                             this.removeEntity(e, this.enemies);
                             this.player.addScore(100);
+                            
+                            // Marca como atingido para remover o tiro
+                            hit = true;
+                            // Para de procurar outros inimigos para este tiro específico
+                            break; 
                         }
-                        hit = true;
-                        break; 
+                        // SE A COR FOR DIFERENTE:
+                        // O loop continua, o 'hit' continua false.
+                        // O tiro atravessa o inimigo "errado" como se ele não existisse.
                     }
                 }
 
+                // Remove o tiro se acertou a cor certa OU foi muito longe
                 if (hit || p.position.distanceTo(this.player.position) > 60) {
                     this.removeEntity(p, this.projectiles);
                 }
